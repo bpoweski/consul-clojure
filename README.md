@@ -4,8 +4,7 @@
 
 ## Goals
 
-* A small, lightweight client for Consul
-* Minimal dependencies
+Provide a useful library for building Consul aware Clojure applications.
 
 ## License
 

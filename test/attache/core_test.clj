@@ -5,17 +5,15 @@
   (:import (java.util UUID)))
 
 
-(defn cleanup [f]
-  (kv-del :local "attache" :recurse? true)
-  (f)
-  (kv-del :local "attache" :recurse? true))
-
 (deftest endpoint->path-test
   (testing "Key/Value store"
     (are [path endpoint] (= path (endpoint->path endpoint))
          "/v1/kv/key"              [:kv "key"]
          "/v1/agent/services"      [:agent :services]
          "/v1/agent/join/10.1.1.2" [:agent :join "10.1.1.2"])))
+
+(deftest base64-test
+  (is (= "bar" (base64->str "YmFy"))))
 
 (deftest consul-request-test
   (testing ":local conn"
@@ -30,16 +28,40 @@
     (is (= :https (:scheme (consul-request {:scheme :https :server-name "10.0.37.4" :server-port 8501} :get [:agent :checks]))))
     (is (= "10.0.37.4" (:server-name (consul-request {:scheme :https :server-name "10.0.37.4" :server-port 8501} :get [:agent :checks]))))))
 
+(deftest consul-test
+  (testing "with a connection failure"
+    (are [v ks] (= v (get-in (ex-data (consul {:server-port 8501} :get [:kv "foo"])) ks))
+         8501 [:http-request :server-port]
+         :connect-failure [:reason])))
+
+(deftest kv-map->vec-test
+  (are [v k] (is (= v (get (meta (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} false)) k)))
+       389 :modify-index
+       2 :create-index
+       0 :lock-index
+       1 :flags)
+  (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value "bar"} false)))
+  (is (= ["foo" nil] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value nil} true)))
+  (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} true))))
+
 (deftest ^{:integration true} kv-store-test
-  (testing "basic kv operations"
-    (let [k (str *ns* "." (UUID/randomUUID))
-          v (str (UUID/randomUUID))]
-      (is (nil? (kv-get :local k)))
+  (let [k   (str "attache." (UUID/randomUUID))
+        k-2 (str "attache." (UUID/randomUUID))
+        v   (str (UUID/randomUUID))]
+    (testing "basic kv-get operations"
+      (is [k nil] (kv-get :local k))
       (is (true? (kv-put :local k v)))
-      (is (= v (kv-get :local k :raw? true)))
-      (is (= (str->base64 v) (:Value (first (kv-get :local k)))))
+      (is (= [k v] (kv-get :local k :raw? true)))
+      (is (= [k v] (kv-get :local k :string? true)))
+      (is (= [k (str->base64 v)] (kv-get :local k :string? false)))
       (is (true? (kv-del :local k)))
-      (is (nil? (kv-get :local k))))))
+      (is (= [k nil] (kv-get :local k)))
+      (is (true? (kv-put :local k v))))
+    (testing "kv-keys"
+      (is (= #{k} (kv-keys :local "attache")))
+      (is (= #{} (kv-keys :local "x")))
+      (kv-put :local k-2 "x")
+      (is (= #{k k-2} (kv-keys :local "attache"))))))
 
 (deftest map->check-test
   (let [m {:id       "search"
@@ -64,5 +86,11 @@
       (is (map? (get-in (agent-checks :local) [check-id])))
       (is (true? (agent-deregister-check :local check-id)))
       (is (nil? (get-in (agent-checks :local) [check-id]))))))
+
+
+(defn cleanup [f]
+  (kv-del :local "attache" :recurse? true)
+  (f)
+  (kv-del :local "attache" :recurse? true))
 
 (use-fixtures :each cleanup)
