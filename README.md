@@ -6,6 +6,20 @@
 
 Provide a useful library for building Consul aware Clojure applications.
 
+### Key/Value store
+
+### Agent
+
+### Catalog
+
+### Health Checks
+
+### Access Control Lists
+
+### User Events
+
+### Status
+
 ## License
 
 Copyright © 2015 Benjamin Poweski
