@@ -4,4 +4,5 @@ before_script:
   - unzip "0.5.2_linux_amd64.zip"
   - ./consul --version
 script:
-  - ../consul agent -server -bootstrap-expect 1 -data-dir /tmp/consul &
+  - ./consul agent -server -bootstrap-expect 1 -data-dir /tmp/consul &
+  - lein test
