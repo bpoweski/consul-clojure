@@ -251,16 +251,23 @@
   (let [{:keys [status] :as response} (consul conn :delete [:agent :check :deregister check-id] {:query-params params})]
     (= 200 status)))
 
-;; /v1/agent/check/pass/<checkID> : Marks a local test as passing
 (defn agent-pass-check
   "Marks a local check as passing."
   [conn check-id & {:as params}]
-  (let [{:keys [status] :as response} (consul conn :delete [:agent :check :pass check-id] {:query-params params})]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :check :pass check-id] {:query-params params})]
     (= 200 status)))
 
-;; /v1/agent/check/warn/<checkID> : Marks a local test as warning
+(defn agent-warn-check
+  "Marks a local test as warning."
+  [conn check-id & {:as params}]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :check :warn check-id] {:query-params params})]
+    (= 200 status)))
 
-;; /v1/agent/check/fail/<checkID> : Marks a local test as critical
+(defn agent-fail-check
+  "Marks a local test as critical."
+  [conn check-id & {:as params}]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :check :warn check-id] {:query-params params})]
+    (= 200 status)))
 
 ;; /v1/agent/service/register : Registers a new local service
 
@@ -277,7 +284,7 @@
 (defn service-health-checks
   "Returns the checks of a service"
   [conn service & {:as params}]
-  (let [{:keys [body headers] :as response} (consul conn :get [:health :service (str service)])]
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :service service])]
     (vary-meta body merge (headers->index headers))))
 
 ;; /v1/health/service/<service>: Returns the nodes and health info of a service
@@ -294,11 +301,9 @@
 (defn leader
   "Returns the current Raft leader."
   [conn]
-  (let [{:keys [body]} (consul conn :get [:status :leader])]
-    body))
+  (:body (consul conn :get [:status :leader])))
 
 (defn peers
   "Returns the Raft peers for the datacenter in which the agent is running."
   [conn]
-  (let [{:keys [body] :as response} (consul conn :get [:status :peers])]
-    body))
+  (:body (consul conn :get [:status :peers])))
