@@ -30,7 +30,7 @@
 
 (deftest consul-test
   (testing "with a connection failure"
-    (are [v ks] (= v (get-in (ex-data (consul {:server-port 8501} :get [:kv "foo"])) ks))
+    (are [v ks] (= v (get-in (ex-data (try (consul {:server-port 8501} :get [:kv "foo"]) (catch Exception err err))) ks))
          8501 [:http-request :server-port]
          :connect-failure [:reason])))
 

@@ -30,16 +30,15 @@
 
 (defn consul-request
   "Constructs a Consul HTTP request."
-  ([conn method endpoint] (consul-request conn method endpoint {}))
-  ([conn method endpoint {:as opts :keys [body]}]
-   {:pre [(or (= conn :local) (map? conn))]
-    :post [(:request-method %) (:server-name %) (:server-port %)]}
-   (cond-> (assoc local-conn :request-method method)
-     (map? conn)        (merge conn)
-     (vector? endpoint) (assoc :uri (endpoint->path endpoint))
-     (string? endpoint) (assoc :uri endpoint)
-     (map? opts)        (merge opts)
-     (map? body)        (update-in [:body] json/generate-string))))
+  [conn method endpoint & [{:as opts :keys [body]}]]
+  {:pre [(or (= conn :local) (map? conn))]
+   :post [(:request-method %) (:server-name %) (:server-port %)]}
+  (cond-> (assoc local-conn :request-method method)
+    (map? conn)        (merge conn)
+    (vector? endpoint) (assoc :uri (endpoint->path endpoint))
+    (string? endpoint) (assoc :uri endpoint)
+    (map? opts)        (merge opts)
+    (map? body)        (update-in [:body] json/generate-string)))
 
 (defn success? [{:keys [status] :as resp}]
   (or (client/unexceptional-status? status)
@@ -58,21 +57,11 @@
                          client/request parse-response)]
         (if (success? response)
           response
-          (ex-info "application failure" {:reason :application-failure :http-request http-request :conn conn :endpoint endpoint :http-response response})))
+          (throw (ex-info "application failure" {:reason :application-failure :conn conn :endpoint endpoint :request request :http-request http-request :http-response response}))))
       (catch java.net.ConnectException ex
-        (ex-info "connection failure" {:reason :connect-failure :http-request http-request :conn conn :endpoint endpoint} ex))
+        (throw (ex-info "connection failure" {:reason :connect-failure :conn conn :endpoint endpoint :request request :http-request http-request} ex)))
       (catch java.net.UnknownHostException ex
-        (ex-info "unknown host" {:reason :unknown-host :http-request http-request :conn conn :endpoint endpoint} ex)))))
-
-(defmacro with-returned-ex [bindings & body]
-  (assert (vector? bindings) "a vector for its binding")
-  (assert (= 2 (count bindings)) "exactly 2 forms in binding vector")
-  (let [form (bindings 0) tst (bindings 1)]
-    `(let [temp# ~tst]
-       (if (ex-data temp#)
-         temp#
-         (let [~form temp#]
-           ~@body)))))
+        (throw (ex-info "unknown host" {:reason :unknown-host :conn conn :endpoint endpoint :request request :http-request http-request} ex))))))
 
 (defn headers->index
   "Selects the X-Consul-* headers into a map with keywordized names."
@@ -104,7 +93,7 @@
 
   :separator - List keys up to separator."
   [conn prefix & {:as params}]
-  (with-returned-ex [{:keys [body headers status] :as response} (consul conn :get [:kv prefix] {:query-params (assoc params :keys "")})]
+  (let [{:keys [body headers status] :as response} (consul conn :get [:kv prefix] {:query-params (assoc params :keys "")})]
     (cond (= 404 status) (with-meta #{} (headers->index headers))
           (seq body) (with-meta (into #{} body) (headers->index headers)))))
 
@@ -120,7 +109,7 @@
   :raw?      - If true and used with a non-recursive GET, the response is just the raw value of the key, without any encoding.
   :string?    - Converts the value returned for k into a string.  Defaults to true."
   [conn k & {:as params :keys [raw? string?] :or {raw? false string? true}}]
-  (with-returned-ex [{:keys [body headers] :as response} (consul conn :get [:kv k] {:query-params (cond-> (dissoc params :raw? :string?)
+  (let [{:keys [body headers] :as response} (consul conn :get [:kv k] {:query-params (cond-> (dissoc params :raw? :string?)
                                                                                                     raw? (assoc :raw ""))})]
     (cond (or (nil? body) raw?) (with-meta [k body] (headers->index headers))
           :else (kv-map->vec (first body) string?))))
@@ -137,7 +126,7 @@
   :recurse?  - If true, then consul it will return all keys with the given prefix. Defaults to false.
   :binary?   - Converts the value returned for k into a byte array, defaults to converting Value into a UTF-8 String. "
   [conn prefix & {:as params}]
-  (with-returned-ex [{:keys [body headers] :as response} (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})]
+  (let [{:keys [body headers] :as response} (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})]
     (if (nil? body)
       (with-meta #{} (headers->index headers))
       (with-meta (reduce #(conj %1 (kv-map->vec %2 false)) #{} body) (headers->index headers)))))
@@ -154,8 +143,7 @@
   :acquire   - Updates using lock acquisition. A key does not need to exist to be acquired.
   :release   - Yields a lock acquired with :acquire."
   [conn k v & {:as params}]
-  (with-returned-ex [resp (consul conn :put [:kv k] {:query-params params :body v})]
-    (:body resp)))
+  (:body (consul conn :put [:kv k] {:query-params params :body v})))
 
 (defn kv-del
   "Deletes a key k from consul.
@@ -166,9 +154,8 @@
   :recurse?  - If true, then consul it will return all keys with the given prefix. Defaults to false.
   :cas       - Uses a CAS index when updating. If the index is 0, puts only if the key does not exist. If index is non-zero, index must match the ModifyIndex of that key."
   [conn k & {:as params :keys [recurse?] :or {recurse? false}}]
-  (with-returned-ex [resp (consul conn :delete [:kv k] {:query-params (cond-> (dissoc params :recurse?)
-                                                                        recurse? (assoc :recurse ""))})]
-    (:body resp)))
+  (:body (consul conn :delete [:kv k] {:query-params (cond-> (dissoc params :recurse?)
+                                                       recurse? (assoc :recurse ""))})))
 
 (defn shallow-nameify-keys
   "Returns a map with the root keys converted to strings using name."
@@ -188,14 +175,12 @@
 (defn agent-members
   "Returns the members as seen by the local serf agent."
   [conn & {:as params}]
-  (with-returned-ex [resp (consul conn :get [:agent :members] {:query-params params})]
-    (:body resp)))
+  (:body (consul conn :get [:agent :members] {:query-params params})))
 
 (defn agent-self
   "Returns the local node configuration."
   [conn & {:as params}]
-  (with-returned-ex [resp (consul conn :get [:agent :self] {:query-params params})]
-    (:body resp)))
+  (:body (consul conn :get [:agent :self] {:query-params params})))
 
 (defn agent-maintenance
   "Manages node maintenance mode.
@@ -203,19 +188,19 @@
   Requires a boolean value for enable?.  An optional :reason can be provided, returns true if successful."
   [conn enable? & {:as params}]
   {:pre [(contains? #{true false} enable?)]}
-  (with-returned-ex [{:keys [status] :as response} (consul conn :put [:agent :maintenance] {:query-params (assoc params :enable enable?)})]
+  (let [{:keys [status] :as response} (consul conn :put [:agent :maintenance] {:query-params (assoc params :enable enable?)})]
     (= 200 status)))
 
 (defn agent-join
   "Triggers the local agent to join a node.  Returns true if successful."
   [conn address & {:as params}]
-  (with-returned-ex [{:keys [status] :as response} (consul conn :get [:agent :join address] {:query-params params})]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :join address] {:query-params params})]
     (= 200 status)))
 
 (defn agent-force-leave
   "Forces removal of a node, returns true if the request succeeded."
   [conn node & {:as params}]
-  (with-returned-ex [{:keys [status] :as response} (consul conn :get [:agent :force-leave node] {:query-params params})]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :force-leave node] {:query-params params})]
     (= 200 status)))
 
 (def consul-screaming-pascal-case-substitutions
@@ -240,7 +225,7 @@
 
   Requires :script, :http or :ttl to be set.
 
-  Parameters:
+  Map keys:
 
   :name       - required
   :id         - If not provided, is set to :name.  However, duplicate :id values are not allowed.
@@ -257,16 +242,21 @@
 (defn agent-register-check
   "Registers a new check with the local agent."
   [conn m & {:as params}]
-  (with-returned-ex [{:keys [status] :as response} (consul conn :put [:agent :check :register] {:body (map->check m) :query-params params})]
+  (let [{:keys [status] :as response} (consul conn :put [:agent :check :register] {:body (map->check m) :query-params params})]
     (= 200 status)))
 
 (defn agent-deregister-check
   "Deregisters a check with the local agent."
   [conn check-id & {:as params}]
-  (with-returned-ex [{:keys [status] :as response} (consul conn :delete [:agent :check :deregister check-id] {:query-params params})]
+  (let [{:keys [status] :as response} (consul conn :delete [:agent :check :deregister check-id] {:query-params params})]
     (= 200 status)))
 
 ;; /v1/agent/check/pass/<checkID> : Marks a local test as passing
+(defn agent-pass-check
+  "Marks a local check as passing."
+  [conn check-id & {:as params}]
+  (let [{:keys [status] :as response} (consul conn :delete [:agent :check :pass check-id] {:query-params params})]
+    (= 200 status)))
 
 ;; /v1/agent/check/warn/<checkID> : Marks a local test as warning
 
@@ -284,14 +274,31 @@
 ;; /v1/health/node/<node>: Returns the health info of a node
 
 ;; /v1/health/checks/<service>: Returns the checks of a service
+(defn service-health-checks
+  "Returns the checks of a service"
+  [conn service & {:as params}]
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :service (str service)])]
+    (vary-meta body merge (headers->index headers))))
 
 ;; /v1/health/service/<service>: Returns the nodes and health info of a service
 
-(defn health-service
+(defn service-health
   "Returns the nodes and health info of a service."
   [conn service & {:as params :keys [passing?] :or {passing? false}}]
-  (with-returned-ex [{:keys [body headers] :as response} (consul conn :get [:health :service service] {:query-params (cond-> (dissoc params :passing?)
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :service service] {:query-params (cond-> (dissoc params :passing?)
                                                                                                                        passing? (assoc :passing ""))})]
     (vary-meta body merge (headers->index headers))))
 
 ;; /v1/health/state/<state>: Returns the checks in a given state
+
+(defn leader
+  "Returns the current Raft leader."
+  [conn]
+  (let [{:keys [body]} (consul conn :get [:status :leader])]
+    body))
+
+(defn peers
+  "Returns the Raft peers for the datacenter in which the agent is running."
+  [conn]
+  (let [{:keys [body] :as response} (consul conn :get [:status :peers])]
+    body))

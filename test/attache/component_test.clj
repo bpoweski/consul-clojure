@@ -34,9 +34,14 @@
           result   (try<!! ch)]
       (is (attache/ex-info? (try<!! ch))))))
 
+(deftest exp-wait-test
+  (is (= 100.0 (exp-wait 0 10000)))
+  (is (= 1000 (exp-wait 5 1000)))
+  (is (= 3200.0 (exp-wait 5 5000))))
+
 (deftest watch-component-test
   (testing "watch a specific KV pair"
-    (let [watch (component/start (watch-component :local {:key "attache.keytest" :type :key} {}))]
+    (let [watch (component/start (watch-component :local {:key "attache.keytest" :type :key}))]
       (is (= {:config ["attache.keytest" nil], :failures 0} @(:state watch)))
       (attache/kv-put :local "attache.keytest" "1")
       (async/<!! (async/timeout 100))

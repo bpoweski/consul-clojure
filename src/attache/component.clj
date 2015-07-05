@@ -22,13 +22,17 @@
 (defn watch-consul
   "Watches consul for changes associated with spec and publishes them onto ch."
   [conn spec ch]
-  (async/go-loop [resp (async/<! (async/thread (attache/kv-get conn (:key spec))))]
+  (async/go-loop [resp (async/<! (async/thread (try (attache/kv-get conn (:key spec))
+                                                    (catch Exception err
+                                                      err))))]
     (let [v (async/>! ch resp)]
       (if (true? v)
         (recur (async/<! (async/thread
-                           (if (attache/ex-info? resp)
-                             (attache/kv-get conn (:key spec)) ;; ditch the index for faster clearing of errors
-                             (attache/kv-get conn (:key spec) :index (:modify-index (meta resp)) :wait "45s")))))
+                           (try (if (attache/ex-info? resp)
+                                  (attache/kv-get conn (:key spec)) ;; ditch the index for faster clearing of errors
+                                  (attache/kv-get conn (:key spec) :index (:modify-index (meta resp)) :wait "45s"))
+                                (catch Exception err
+                                  err)))))
         (do (info "exiting consul watch")
             (spy :debug spec))))))
 
@@ -44,6 +48,10 @@
          (assoc :config new-config :failures 0)
          (dissoc :error)))))
 
+(defn exp-wait [n max-ms]
+  {:pre [(number? n) (>= n 0) (number? max-ms) (> max-ms 0)]}
+  (min (* (Math/pow 2 n) 100) max-ms))
+
 (defrecord WatchComponent [conn spec ch state options]
   component/Lifecycle
   (start [{:keys [ch] :as watch}]
@@ -57,7 +65,7 @@
                          (when (attache/ex-info? new-config)
                            (warn "failure when polling consul")
                            (spy :warn new-config)
-                           (async/<! (async/timeout (Math/pow 2 (or (:failures @state) 0)))))
+                           (async/<! (async/timeout (exp-wait (or (:failures @state) 0) (get options :max-retry-wait 5000)))))
                          (recur)))
           resp       (async/<!! ch)]
       (reset! state (update-state resp))
@@ -69,6 +77,15 @@
     watch))
 
 (defn watch-component
-  "Creates a component that watches for changes to spec and caches results in state."
-  [conn spec options]
-  (map->WatchComponent {:conn conn :spec spec :ch (async/chan) :state (atom nil) :options (merge {:wait "45s"} options)}))
+  "Creates a component that watches for changes to spec and caches results in state.
+
+  :query-params   - the query params passed into the underlying service call
+  :max-retry-wait - max interval before retying consul when a failure occurs.  Defaults to 5s."
+  [conn spec & {:as options}]
+  (map->WatchComponent {:conn conn :spec spec :ch (async/chan) :state (atom nil) :options options}))
+
+
+(defn service-registration
+  "Creates a component that registers the application service with consul."
+  [conn name & {:keys [port]}]
+  )
