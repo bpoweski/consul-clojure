@@ -8,7 +8,8 @@
                  [clj-http-lite "0.2.1" :exclusions [org.clojure/clojure]]
                  [com.taoensso/timbre "3.4.0" :optional true]
                  [com.stuartsierra/component "0.2.2" :optional true]]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]
+  :profiles {:dev {:dependencies [[info.sunng/ring-jetty9-adapter "0.8.2" :exclusions [ring/ring-core org.clojure/clojure]]
+                                  [org.clojure/clojure "1.5.1"]
                                   [org.clojure/tools.trace "0.7.8"]
                                   [org.clojure/core.async "0.1.346.0-17112a-alpha"]]
                    :jvm-opts ["-XX:MaxPermSize=128M"]}})

@@ -269,9 +269,17 @@
   (let [{:keys [status] :as response} (consul conn :get [:agent :check :warn check-id] {:query-params params})]
     (= 200 status)))
 
-;; /v1/agent/service/register : Registers a new local service
+(defn agent-register-service
+  "Registers a new local service."
+  [conn m & {:as params}]
+  (let [{:keys [status] :as response} (consul conn :put [:agent :service :register] {:query-params params :body m})]
+    (= 200 status)))
 
-;; /v1/agent/service/deregister/<serviceID> : Deregisters a local service
+(defn agent-deregister-service
+  "Registers a new local service."
+  [conn service-id & {:as params}]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :service :deregister service-id] {:query-params params})]
+    (= 200 status)))
 
 ;; /v1/agent/service/maintenance/<serviceID> : Manages service maintenance mode
 
@@ -288,7 +296,6 @@
     (vary-meta body merge (headers->index headers))))
 
 ;; /v1/health/service/<service>: Returns the nodes and health info of a service
-
 (defn service-health
   "Returns the nodes and health info of a service."
   [conn service & {:as params :keys [passing?] :or {passing? false}}]
@@ -307,3 +314,13 @@
   "Returns the Raft peers for the datacenter in which the agent is running."
   [conn]
   (:body (consul conn :get [:status :peers])))
+
+(defn passing?
+  "Returns true if check is passing"
+  [check]
+  (contains? #{"passing"} (:Status check)))
+
+(defn healthy-service?
+  "Returns true if every check is passing for each object returned from /v1/health/service/<service>."
+  [health-service]
+  (every? passing? (:Checks health-service)))

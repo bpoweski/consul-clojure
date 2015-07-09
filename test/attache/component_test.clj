@@ -20,7 +20,7 @@
 (deftest watch-kv-test
   (testing "immediate returns the initial kv pair"
     (let [ch       (async/chan 1)
-          watch-ch (watch-consul :local {:type :key :key "attache.key"} ch)]
+          watch-ch (watch :local [:key "attache.key"] ch)]
       (is (= ["attache.key" nil] (try<!! ch)))
       (attache/kv-put :local "attache.key" "value")
       (is (= ["attache.key" "value"] (try<!! ch)))
@@ -30,7 +30,7 @@
       (is (= ["attache.key" nil] (try<!! ch)))))
   (testing "with a connection error"
     (let [ch       (async/chan 1)
-          watch-ch (watch-consul {:server-port 8501} {:type :key :key "attache.key"} ch)
+          watch-ch (watch {:server-port 8501} [:key "attache.key"] ch)
           result   (try<!! ch)]
       (is (attache/ex-info? (try<!! ch))))))
 
@@ -41,7 +41,7 @@
 
 (deftest watch-component-test
   (testing "watch a specific KV pair"
-    (let [watch (component/start (watch-component :local {:key "attache.keytest" :type :key}))]
+    (let [watch (component/start (watch-component :local [:key "attache.keytest"]))]
       (is (= {:config ["attache.keytest" nil], :failures 0} @(:state watch)))
       (attache/kv-put :local "attache.keytest" "1")
       (async/<!! (async/timeout 100))
