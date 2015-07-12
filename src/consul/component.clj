@@ -1,5 +1,5 @@
-(ns attache.component
-  (:require [attache.core :as consul]
+(ns consul.component
+  (:require [consul.core :as consul]
             [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
             [cheshire.core :as json]

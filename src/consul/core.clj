@@ -1,4 +1,4 @@
-(ns attache.core
+(ns consul.core
   (:require [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
             [cheshire.core :as json]

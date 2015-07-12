@@ -1,6 +1,6 @@
-(ns attache.example
+(ns consul.example
   "Example of registering a Jetty service."
-  (:require [attache.component :as service-component]
+  (:require [consul.component :as service-component]
             [com.stuartsierra.component :as component]
             [ring.adapter.jetty9 :as jetty]
             [ring.util.response :as response]

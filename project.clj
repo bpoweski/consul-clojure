@@ -1,6 +1,6 @@
-(defproject attache "0.1.0-SNAPSHOT"
+(defproject consul-clojure "0.1.0-SNAPSHOT"
   :description "An async consul client."
-  :url "http://github.com/bpoweski/attache"
+  :url "http://github.com/bpoweski/consul-clojure"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[camel-snake-kebab "0.3.1" :exclusions [org.clojure/clojure com.keminglabs/cljx]]

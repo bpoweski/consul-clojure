@@ -1,6 +1,6 @@
-(ns attache.core-test
+(ns consul.core-test
   (:require [clojure.test :refer :all]
-            [attache.core :refer :all]
+            [consul.core :refer :all]
             [com.stuartsierra.component :as component])
   (:import (java.util UUID)))
 
@@ -59,8 +59,8 @@
       :connect-failure [:reason])))
 
 (deftest ^{:integration true} kv-store-test
-  (let [k   (str "attache." (UUID/randomUUID))
-        k-2 (str "attache." (UUID/randomUUID))
+  (let [k   (str "consul-clojure." (UUID/randomUUID))
+        k-2 (str "consul-clojure." (UUID/randomUUID))
         v   (str (UUID/randomUUID))]
     (testing "basic kv-get operations"
       (is [k nil] (kv-get :local k))
@@ -72,40 +72,40 @@
       (is (= [k nil] (kv-get :local k)))
       (is (true? (kv-put :local k v))))
     (testing "kv-keys"
-      (is (= #{k} (kv-keys :local "attache")))
+      (is (= #{k} (kv-keys :local "consul-clojure")))
       (is (= #{} (kv-keys :local "x")))
       (kv-put :local k-2 "x")
-      (is (= #{k k-2} (kv-keys :local "attache"))))))
+      (is (= #{k k-2} (kv-keys :local "consul-clojure"))))))
 
 (deftest ^{:integration true} agent-test
   (testing "registering and removing checks"
-    (let [check-id (str "attache.check." (UUID/randomUUID))]
+    (let [check-id (str "consul-clojure.check." (UUID/randomUUID))]
       (is (nil? (get-in (agent-checks :local) [check-id])))
       (is (true? (agent-register-check :local {:name "test-check" :interval "10s" :http "http://127.0.0.1:8500/ui/" :id check-id})))
       (is (map? (get-in (agent-checks :local) [check-id])))
       (is (true? (agent-deregister-check :local check-id)))
       (is (nil? (get-in (agent-checks :local) [check-id])))))
   (testing "registering and deregistering a service"
-    (let [service-id (str "attache.service." (UUID/randomUUID))]
+    (let [service-id (str "consul-clojure.service." (UUID/randomUUID))]
       (is (nil? (get-in (agent-services :local) [service-id])))
       (is (true? (agent-register-service :local {:name service-id})))
       (is (map? (get-in (agent-services :local) [service-id])))
       (is (true? (agent-deregister-service :local service-id)))
       (is (nil? (get-in (agent-services :local) [service-id])))))
   (testing "registering a service with a ttl check"
-    (let [service-id (str "attache.service.ttl." (UUID/randomUUID))]
+    (let [service-id (str "consul-clojure.service.ttl." (UUID/randomUUID))]
       (is (true? (agent-register-service :local {:name service-id :check {:ttl "1s"}})))
       (is (map? (get-in (agent-services :local) [service-id])))
       (is (= 1 (count (filter (comp #{service-id} :ServiceID) (vals (agent-checks :local))))))))
   (testing "registering a service with two ttl checks"
-    (let [service-id (str "attache.service.ttl." (UUID/randomUUID))]
+    (let [service-id (str "consul-clojure.service.ttl." (UUID/randomUUID))]
       (is (true? (agent-register-service :local {:name service-id :checks [{:ttl "1s"} {:ttl "5s"}]})))
       (is (map? (get-in (agent-services :local) [service-id])))
       (is (= 2 (count (filter (comp #{service-id} :ServiceID) (vals (agent-checks :local)))))))))
 
 (defn clean []
-  (kv-del :local "attache" :recurse? true)
-  (doseq [service-id (filter #(re-seq #"^attache.*" %) (keys (agent-services :local)))]
+  (kv-del :local "consul-clojure" :recurse? true)
+  (doseq [service-id (filter #(re-seq #"^consul-clojure.*" %) (keys (agent-services :local)))]
     (agent-deregister-service :local service-id)))
 
 (defn cleanup [f]
