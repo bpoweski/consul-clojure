@@ -8,9 +8,9 @@
 (deftest endpoint->path-test
   (testing "Key/Value store"
     (are [path endpoint] (= path (endpoint->path endpoint))
-         "/v1/kv/key"              [:kv "key"]
-         "/v1/agent/services"      [:agent :services]
-         "/v1/agent/join/10.1.1.2" [:agent :join "10.1.1.2"])))
+      "/v1/kv/key"              [:kv "key"]
+      "/v1/agent/services"      [:agent :services]
+      "/v1/agent/join/10.1.1.2" [:agent :join "10.1.1.2"])))
 
 (deftest base64-test
   (is (= "bar" (base64->str "YmFy"))))
@@ -30,10 +30,10 @@
 
 (deftest kv-map->vec-test
   (are [v k] (is (= v (get (meta (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} false)) k)))
-       389 :modify-index
-       2 :create-index
-       0 :lock-index
-       1 :flags)
+    389 :modify-index
+    2 :create-index
+    0 :lock-index
+    1 :flags)
   (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value "bar"} false)))
   (is (= ["foo" nil] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value nil} true)))
   (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} true))))
@@ -55,8 +55,8 @@
 (deftest ^{:integration true} consul-test
   (testing "with a connection failure"
     (are [v ks] (= v (get-in (ex-data (try (consul {:server-port 8501} :get [:kv "foo"]) (catch Exception err err))) ks))
-         8501 [:http-request :server-port]
-         :connect-failure [:reason])))
+      8501 [:http-request :server-port]
+      :connect-failure [:reason])))
 
 (deftest ^{:integration true} kv-store-test
   (let [k   (str "attache." (UUID/randomUUID))

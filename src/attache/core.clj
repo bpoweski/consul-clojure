@@ -110,7 +110,7 @@
   :string?    - Converts the value returned for k into a string.  Defaults to true."
   [conn k & {:as params :keys [raw? string?] :or {raw? false string? true}}]
   (let [{:keys [body headers] :as response} (consul conn :get [:kv k] {:query-params (cond-> (dissoc params :raw? :string?)
-                                                                                                    raw? (assoc :raw ""))})]
+                                                                                       raw? (assoc :raw ""))})]
     (cond (or (nil? body) raw?) (with-meta [k body] (headers->index headers))
           :else (kv-map->vec (first body) string?))))
 
@@ -285,25 +285,29 @@
 
 
 ;; Health Checks
+(defn node-health [conn node & {:as params}]
+  "Returns the health info of a node"
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :node node] {:query-params params})]
+    (vary-meta body merge (headers->index headers))))
 
-;; /v1/health/node/<node>: Returns the health info of a node
-
-;; /v1/health/checks/<service>: Returns the checks of a service
 (defn service-health-checks
   "Returns the checks of a service"
   [conn service & {:as params}]
-  (let [{:keys [body headers] :as response} (consul conn :get [:health :service service])]
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :service service] {:query-params params})]
     (vary-meta body merge (headers->index headers))))
 
-;; /v1/health/service/<service>: Returns the nodes and health info of a service
 (defn service-health
   "Returns the nodes and health info of a service."
   [conn service & {:as params :keys [passing?] :or {passing? false}}]
   (let [{:keys [body headers] :as response} (consul conn :get [:health :service service] {:query-params (cond-> (dissoc params :passing?)
-                                                                                                                       passing? (assoc :passing ""))})]
+                                                                                                          passing? (assoc :passing ""))})]
     (vary-meta body merge (headers->index headers))))
 
-;; /v1/health/state/<state>: Returns the checks in a given state
+(defn health-checks
+  "Returns the checks in a given state"
+  [conn state & {:as params}]
+  (let [{:keys [body headers] :as response} (consul conn :get [:health :state state] {:query-params params})]
+    (vary-meta body merge (headers->index headers))))
 
 (defn leader
   "Returns the current Raft leader."

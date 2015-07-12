@@ -46,5 +46,4 @@
       (attache/kv-put :local "attache.keytest" "1")
       (async/<!! (async/timeout 100))
       (is (= {:config ["attache.keytest" "1"], :failures 0} @(:state watch)))
-      (component/stop watch)))
-  (testing "watch a prefix in the KV store"))
+      (component/stop watch))))
