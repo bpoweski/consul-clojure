@@ -1,5 +1,5 @@
 (defproject consul-clojure "0.1.0-SNAPSHOT"
-  :description "An async consul client."
+  :description "A Consul client for Clojure applications."
   :url "http://github.com/bpoweski/consul-clojure"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
