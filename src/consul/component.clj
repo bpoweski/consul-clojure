@@ -6,22 +6,13 @@
             [clojure.core.async :as async]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
-            [com.stuartsierra.component :as component]
-            [com.stuartsierra.dependency :as deps]
-            [taoensso.timbre :as timbre :refer (log trace debug info warn error fatal spy)]))
+            [com.stuartsierra.component :as component]))
 
-
-(defn log-changes [key atom old-state new-state]
-  (when (not= old-state new-state)
-    (info "detected changes from consul")
-    (info "was:")
-    (spy :info old-state)
-    (info "now:")
-    (spy :info new-state)))
 
 (def watch-fns
-  {:key     consul/kv-get
-   :service consul/service-health})
+  {:key       consul/kv-get
+   :keyprefix consul/kv-recurse
+   :service   consul/service-health})
 
 (defn poll! [conn [kw x] params]
   (let [args (apply concat (seq params))
@@ -35,18 +26,16 @@
        (catch Exception err
          err)))
 
-(defn watch
-  "Watches consul for changes associated with spec and publishes them onto ch."
+(defn long-poll
+  "Polls consul using spec and publishes results onto ch.  Applies no throttling of requests towards consul except via ch."
   [conn spec ch & {:as options}]
   (assert (get watch-fns (first spec) (str "unimplemented watch type " spec)))
   (async/go-loop [resp (async/<! (async/thread (poll conn spec options)))]
     (let [v (async/>! ch resp)]
-      (if (true? v)
+      (when (true? v)
         (recur (async/<! (async/thread (if (consul/ex-info? resp)
                                          (poll conn spec options) ;; don't rely on the old index if we experience a consul failure
-                                         (poll conn spec (merge options {:index (:modify-index (meta resp)) :wait "45s"}))))))
-        (do (info "exiting consul watch")
-            (spy :debug spec))))))
+                                         (poll conn spec (merge options {:index (:modify-index (meta resp)) :wait "45s"}))))))))))
 
 (defn update-state
   "When called with new-config, creates a new state map.  When called with old-state and new-config, old-state is updated with new-config."
@@ -56,9 +45,7 @@
      (-> old-state
          (update-in [:failures] inc)
          (assoc :error new-config))
-     (-> old-state
-         (assoc :config new-config :failures 0)
-         (dissoc :error)))))
+     (assoc old-state :config new-config :failures 0))))
 
 (defn exp-wait [n max-ms]
   {:pre [(number? n) (>= n 0) (number? max-ms) (> max-ms 0)]}
@@ -67,24 +54,17 @@
 (defrecord WatchComponent [conn spec ch state options]
   component/Lifecycle
   (start [{:keys [ch] :as component}]
-    (info "starting consul watch")
-    (spy :info spec)
-    (let [_          (add-watch state :logger log-changes)
-          watcher-ch (watch conn spec ch)
+    (let [watcher-ch (long-poll conn spec ch)
           updater-ch (async/go-loop []
                        (when-let [new-config (async/<! ch)]
                          (swap! state update-state new-config)
                          (when (consul/ex-info? new-config)
-                           (warn "failure polling consul")
-                           (spy :warn new-config)
                            (async/<! (async/timeout (exp-wait (or (:failures @state) 0) (get options :max-retry-wait 5000)))))
                          (recur)))
           resp       (async/<!! ch)]
       (reset! state (update-state resp))
       (assoc component :watcher-ch watcher-ch :updater-ch updater-ch)))
   (stop [{:keys [ch] :as component}]
-    (info "stopping consul watch")
-    (spy :info spec)
     (async/close! ch)
     component))
 

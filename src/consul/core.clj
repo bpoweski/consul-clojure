@@ -123,13 +123,12 @@
   :wait      - Used in conjunction with :index to get using a blocking query. e.g. 10s, 1m, etc.
   :index     - The current Consul index, suitable for making subsequent calls to wait for changes since this query was last run.
 
-  :recurse?  - If true, then consul it will return all keys with the given prefix. Defaults to false.
-  :binary?   - Converts the value returned for k into a byte array, defaults to converting Value into a UTF-8 String. "
-  [conn prefix & {:as params}]
+  :string?    - Converts the value returned for k into a string.  Defaults to true."
+  [conn prefix & {:as params :keys [string?] :or {string? true}}]
   (let [{:keys [body headers] :as response} (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})]
     (if (nil? body)
-      (with-meta #{} (headers->index headers))
-      (with-meta (reduce #(conj %1 (kv-map->vec %2 false)) #{} body) (headers->index headers)))))
+      (with-meta (list) (headers->index headers))
+      (with-meta (map #(kv-map->vec %1 string?) body) (headers->index headers)))))
 
 (defn kv-put
   "Sets key k with value v.

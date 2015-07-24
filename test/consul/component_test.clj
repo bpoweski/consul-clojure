@@ -3,8 +3,7 @@
             [consul.core :as consul]
             [com.stuartsierra.component :as component]
             [clojure.core.async :as async]
-            [clojure.test :refer :all]
-            [taoensso.timbre :as timbre :refer (log trace debug info warn error fatal spy)]))
+            [clojure.test :refer :all]))
 
 
 (defn cleanup [f]
@@ -17,10 +16,10 @@
 (defn try<!! [ch]
   (async/alt!! ch ([v] v) (async/timeout 600) :timeout))
 
-(deftest watch-kv-test
+(deftest long-poll-kv-test
   (testing "immediate returns the initial kv pair"
     (let [ch       (async/chan 1)
-          watch-ch (watch :local [:key "consul-clojure.key"] ch)]
+          watch-ch (long-poll :local [:key "consul-clojure.key"] ch)]
       (is (= ["consul-clojure.key" nil] (try<!! ch)))
       (consul/kv-put :local "consul-clojure.key" "value")
       (is (= ["consul-clojure.key" "value"] (try<!! ch)))
@@ -30,7 +29,7 @@
       (is (= ["consul-clojure.key" nil] (try<!! ch)))))
   (testing "with a connection error"
     (let [ch       (async/chan 1)
-          watch-ch (watch {:server-port 8501} [:key "consul-clojure.key"] ch)
+          poll-ch (long-poll {:server-port 8501} [:key "consul-clojure.key"] ch)
           result   (try<!! ch)]
       (is (consul/ex-info? (try<!! ch))))))
 
