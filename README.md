@@ -53,6 +53,15 @@ This is the LaunchAgent configuration I use for OSX after installing `consul` an
 </plist>
 ```
 
+### Connections
+
+Given much of the time one is interacting with a local consul agent, the keyword `:local` can be used to assume the defaults.  In those other cases
+where someone has gotten "creative" in the deployment of consul or you need to connect to a remote server, you can use a `clj-http-lite` compatible request maps.
+
+```clojure
+{:server-name "127.0.0.1" :server-port 8500}
+```
+
 ### Key/Value store
 
 When using the Key/Value store endpoints directly, one has to contend with a variety of different response formats depending upon the parameters passed.
@@ -113,6 +122,57 @@ Let's remove more than one:
 
 
 ### Agent
+
+The agent consul messages generally are where most applications will interact with Consul.
+
+Return the checks a local agent is managing:
+
+```clojure
+(agent-checks :local)
+=> {"service:redis-04"
+    {:Name "Service redis-shard-1' check",
+     :ServiceName "redis-shard-1",
+     :Status "warning",
+     :CheckID "service:redis-04",
+     :Output
+     "Could not connect to Redis at 127.0.0.1:6503: Connection refused\n",
+     :Notes "",
+     :Node "MacBook-Pro.attlocal.net",
+     :ServiceID "redis-04"}}
+```
+
+List services registered with the agent.
+
+```clojure
+(agent-services :local)
+=> {"consul"
+    {:ID "consul", :Service "consul", :Tags [], :Address "", :Port 8300}}
+```
+
+List members the agent sees.
+
+```clojure
+(agent-members :local)
+=> ({:DelegateMax 4,
+     :Name "server.domain.net",
+     :Addr "192.168.1.72",
+     :ProtocolMin 1,
+     :Status 1,
+     :ProtocolMax 2,
+     :DelegateCur 4,
+     :DelegateMin 2,
+     :ProtocolCur 2,
+     :Tags
+     {:bootstrap "1",
+      :build "0.5.2:9a9cc934",
+      :dc "dc1",
+      :port "8300",
+      :role "consul",
+      :vsn "2",
+      :vsn_max "2",
+      :vsn_min "1"},
+     :Port 8301})
+```
 
 ### Catalog
 
