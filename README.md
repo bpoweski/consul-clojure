@@ -174,6 +174,47 @@ List members the agent sees.
      :Port 8301})
 ```
 
+Return the local agent configuration.
+
+```clojure
+(agent-self :local)
+=> ...
+```
+
+Put a node into maintenance mode.
+
+```clojure
+(agent-maintenance :local true)
+=> true
+```
+
+Take it out of maintenance mode.
+
+```clojure
+(agent-maintenance :local false)
+=> true
+```
+
+Join a node into a cluster using the RPC address.
+
+```clojure
+(agent-join :local "10.1.3.1:8400")
+=> true
+```
+
+Force leave a node.
+
+```clojure
+(agent-force-leave :local "10.1.3.1:8400")
+=> true
+```
+
+#### Check Management
+
+
+#### Service Management
+
+
 ### Catalog
 
 ### Health Checks
