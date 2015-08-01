@@ -2,6 +2,10 @@
 
 [Consul](https://www.consul.io) is an awesome service discovery and configuration provider.
 
+```clojure
+[consul-clojure "0.1.0"] ;; initial
+```
+
 ## Goals
 
 Provide a useful library for building Consul aware Clojure applications.
