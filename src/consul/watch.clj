@@ -1,13 +1,6 @@
-(ns consul.component
+(ns consul.watch
   (:require [consul.core :as consul]
-            [camel-snake-kebab.core :as csk]
-            [camel-snake-kebab.extras :as cske]
-            [cheshire.core :as json]
-            [clojure.core.async :as async]
-            [clojure.pprint :refer [pprint]]
-            [clojure.string :as str]
-            [com.stuartsierra.component :as component]))
-
+            [clojure.core.async :as async]))
 
 (def watch-fns
   {:key       consul/kv-get
@@ -51,30 +44,27 @@
   {:pre [(number? n) (>= n 0) (number? max-ms) (> max-ms 0)]}
   (min (* (Math/pow 2 n) 100) max-ms))
 
-(defrecord WatchComponent [conn spec ch state options]
-  component/Lifecycle
-  (start [{:keys [ch] :as component}]
-    (let [watcher-ch (long-poll conn spec ch)
-          updater-ch (async/go-loop []
-                       (when-let [new-config (async/<! ch)]
-                         (swap! state update-state new-config)
-                         (when (consul/ex-info? new-config)
-                           (async/<! (async/timeout (exp-wait (or (:failures @state) 0) (get options :max-retry-wait 5000)))))
-                         (recur)))
-          resp       (async/<!! ch)]
-      (reset! state (update-state resp))
-      (assoc component :watcher-ch watcher-ch :updater-ch updater-ch)))
-  (stop [{:keys [ch] :as component}]
-    (async/close! ch)
-    component))
-
-(defn watch-component
-  "Creates a component that watches for changes to spec and caches results in state.
+(defn setup-watch
+  "Creates a watching channel and notifies changes to a change-fn
 
   :query-params   - the query params passed into the underlying service call
-  :max-retry-wait - max interval before retying consul when a failure occurs.  Defaults to 5s."
-  [conn spec & {:as options}]
-  (map->WatchComponent {:conn conn :spec spec :ch (async/chan) :state (atom nil) :options options}))
+  :max-retry-wait - max interval before retying consul when a failure occurs.  Defaults to 5s.
+
+  Returns a function that shuts down the channel when called."
+  [conn [watch-key path :as spec] change-fn {:keys [max-retry-wait query-params] :as options}]
+  (let [state (atom nil)
+        ch (async/chan)]
+    (apply long-poll conn spec ch (mapcat identity query-params))
+    (async/go-loop []
+      (when-let [new-config (async/<! ch)]
+        (let [old-state @state]
+          (when (not= (:config old-state) new-config)
+            (swap! state update-state new-config)
+            (if-not (consul/ex-info? new-config)
+              (change-fn (:config @state))
+              (async/<! (async/timeout (exp-wait (or (:failures @state) 0) (get options :max-retry-wait 5000))))))
+          (recur))))
+    #(async/close! ch)))
 
 (defn ttl-check-update
   [conn check-id ^long ms ch]
@@ -82,23 +72,25 @@
   {:pre [(string? check-id) ms]}
   (async/go-loop []
     (async/<! (async/thread (consul/agent-pass-check conn check-id)))
-    (when (async/alt! ch ([v] v) (async/timeout ms) ([_] :continue))
+    (when (async/alt! ch
+            ([v] v)
+            (async/timeout ms)
+            ([_] :continue))
       (recur))))
 
 (defn check-id [service-definition]
   (str "service:" (:id service-definition)))
 
-(defrecord ServiceRegistrar [conn service-definition update-ms control-ch]
-  component/Lifecycle
-  (start [registration]
+(defn register-service
+  "Register a service and keeps sending a health check to Consul every update-ms"
+  [conn service-definition update-ms]
+  (let [control-ch (async/chan)]
     (consul/agent-register-service conn service-definition)
-    (assoc registration :check-updater (ttl-check-update conn (check-id service-definition) update-ms control-ch)))
-  (stop [registration]
-    (async/close! control-ch)
-    (consul/agent-deregister-service conn (:id service-definition))
-    registration))
+    (ttl-check-update conn (check-id service-definition) update-ms control-ch)
+    (fn []
+      (async/close! control-ch)
+      (consul/agent-deregister-service conn (:id service-definition)))))
 
-(defn service-registrar
-  "Creates a component that registers the application service with consul."
-  [conn service-definition update-ms & {:as opts}]
-  (map->ServiceRegistrar {:conn conn :service-definition service-definition :control-ch (async/chan) :update-ms update-ms}))
+(defn is-leader?
+  [conn key]
+  (let [session ()]))
