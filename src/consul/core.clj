@@ -58,11 +58,15 @@
                          client/request parse-response)]
         (if (success? response)
           response
-          (throw (ex-info "application failure" {:reason :application-failure :conn conn :endpoint endpoint :request request :http-request http-request :http-response response}))))
+          (throw (ex-info (:body response) {:reason :application-failure :conn conn :endpoint endpoint :request request :http-request http-request :http-response response}))))
       (catch java.net.ConnectException ex
         (throw (ex-info "connection failure" {:reason :connect-failure :conn conn :endpoint endpoint :request request :http-request http-request} ex)))
       (catch java.net.UnknownHostException ex
-        (throw (ex-info "unknown host" {:reason :unknown-host :conn conn :endpoint endpoint :request request :http-request http-request} ex))))))
+        (throw (ex-info "unknown host" {:reason :unknown-host :conn conn :endpoint endpoint :request request :http-request http-request} ex)))
+      (catch Exception ex
+        (if (ex-info? ex)
+          (throw ex)
+          (throw (ex-info (.getMessage ex) {:reason :exception :conn conn :endpoint endpoint :request request :http-request http-request} ex)))))))
 
 (defn headers->index
   "Selects the X-Consul-* headers into a map with keywordized names."

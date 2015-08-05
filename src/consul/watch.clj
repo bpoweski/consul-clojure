@@ -8,9 +8,8 @@
    :service   consul/service-health})
 
 (defn poll! [conn [kw x] params]
-  (let [args (apply concat (seq params))
-        f    (get watch-fns kw)]
-    (apply f conn x args)))
+  (let [f    (get watch-fns kw)]
+    (f conn x params)))
 
 (defn poll
   "Calls consul for the given spec passing params.  Returns the exception if one occurs."
@@ -21,14 +20,13 @@
 
 (defn long-poll
   "Polls consul using spec and publishes results onto ch.  Applies no throttling of requests towards consul except via ch."
-  [conn spec ch & {:as options}]
+  [conn spec ch {:as options}]
   (assert (get watch-fns (first spec) (str "unimplemented watch type " spec)))
   (async/go-loop [resp (async/<! (async/thread (poll conn spec options)))]
-    (let [v (async/>! ch resp)]
-      (when (true? v)
-        (recur (async/<! (async/thread (if (consul/ex-info? resp)
-                                         (poll conn spec options) ;; don't rely on the old index if we experience a consul failure
-                                         (poll conn spec (merge options {:index (:modify-index (meta resp)) :wait "45s"}))))))))))
+    (when (async/>! ch resp)
+      (recur (async/<! (async/thread (if (consul/ex-info? resp)
+                                       (poll conn spec options) ;; don't rely on the old index if we experience a consul failure
+                                       (poll conn spec (merge options {:index (:modify-index resp) :wait "45s"})))))))))
 
 (defn update-state
   "When called with new-config, creates a new state map.  When called with old-state and new-config, old-state is updated with new-config."
@@ -45,25 +43,35 @@
   (min (* (Math/pow 2 n) 100) max-ms))
 
 (defn setup-watch
-  "Creates a watching channel and notifies changes to a change-fn
+  "Creates a watching channel and notifies changes to a change-chan channel
 
   :query-params   - the query params passed into the underlying service call
   :max-retry-wait - max interval before retying consul when a failure occurs.  Defaults to 5s.
 
-  Returns a function that shuts down the channel when called."
-  [conn [watch-key path :as spec] change-fn {:keys [max-retry-wait query-params] :as options}]
-  (let [state (atom nil)
-        ch (async/chan)]
-    (apply long-poll conn spec ch (mapcat identity query-params))
-    (async/go-loop []
-      (when-let [new-config (async/<! ch)]
-        (let [old-state @state]
-          (when (not= (:config old-state) new-config)
-            (swap! state update-state new-config)
-            (if-not (consul/ex-info? new-config)
-              (change-fn (:config @state))
-              (async/<! (async/timeout (exp-wait (or (:failures @state) 0) (get options :max-retry-wait 5000))))))
-          (recur))))
+  The watch will terminate when the change-chan output channel is closed or when resulting
+  function is called"
+  [conn [watch-key path :as spec] change-chan {:keys [max-retry-wait query-params log] :as options}]
+  (let [ch (async/chan)
+        log (or log (fn [& _]))]
+    (long-poll conn spec ch query-params)
+    (async/go
+      (loop [old-state nil]
+        (log "Start watching " spec)
+        (when-let [new-config (async/<! ch)]
+          (if-not (consul/ex-info? new-config) (log "Message: " new-config))
+          (cond
+            (consul/ex-info? new-config)
+            (do
+              (async/<! (async/timeout (exp-wait (or (:failures old-state) 0) (get options :max-retry-wait 5000))))
+              (recur (update-state old-state new-config)))
+            (not= (:config old-state) new-config)
+            (do
+              (log "State changed for " spec " : " new-config)
+              (when (async/>! change-chan new-config)
+                (recur (update-state old-state new-config))))
+            :else
+            (recur (update-state old-state new-config)))))
+      (log "Finished watching " spec))
     #(async/close! ch)))
 
 (defn ttl-check-update
@@ -91,6 +99,91 @@
       (async/close! control-ch)
       (consul/agent-deregister-service conn (:id service-definition)))))
 
-(defn is-leader?
-  [conn key]
-  (let [session ()]))
+(defn setup-leader-watch [name]
+  (let [w (async/chan (async/sliding-buffer 1))]
+    (async/go-loop [m (async/<! w)]
+      (when m
+        (println name ": " m)
+        (recur (async/<! w))))
+    w))
+
+
+
+(defn leader-watch
+  "Setup a leader election watch on a given key, sends a vector with [path true/false] when the
+   election changes.
+
+   If you close the leader-ch, it releases leader for the key"
+  [conn {:keys [lock-delay node name checks behavior ttl] :as session} k leader-ch {:keys [max-retry-wait query-params log] :as options}]
+  (let [ch (async/chan)
+        log (or log (fn [& _]))]
+    (long-poll conn [:key k] ch query-params)
+    (log "Start leader election on" k)
+    (async/go
+      ;; We don't need the initial value.
+      (async/<! ch)
+      (loop [state {}]
+        (log "")
+        (log "")
+        (log "---------- Loop with " state)
+        (let [sessioninfo
+              (if (:session state)
+                (try (:body (consul/session-info conn (:session state)))
+                     (catch Exception e (log "Exception info session"))))
+              _ (log "session info: " sessioninfo)
+              sessionid
+              (if (nil? sessioninfo)
+                (try
+                  (log "Create session " k)
+                  (consul/session-create conn session)
+                   (catch Exception e (log "Exception creating session: " (.getMessage e)) (.printStackTrace e)))
+                (:session state))
+              _ (log "Sessionid: " sessionid)
+              state
+              (assoc state :session sessionid)]
+          (try
+            (when (and sessionid (not (:leader state)))
+              (log "Acquiring on " sessionid)
+              (let [a (consul/kv-put conn k "1" {:acquire sessionid})]
+                (log "Acquire: " a)))
+            (catch Exception e
+              (log "Exception acquiring session: " (.getMessage e))
+              (.printStackTrace e)))
+
+          (cond
+            ;; First, keep the session going, creating a new one if needed
+            (nil? sessionid)
+            (when (async/>! leader-ch [k false])
+              (log "Invalid session, leader lost for" k " - " state)
+              (async/<! (async/timeout 2000))
+              (recur state))
+            :else
+            (do
+              (log "Waiting for change on " k ", session: " sessionid)
+              (when-let [result (async/<! ch)]
+                (log "Received: " result)
+                (cond
+                  (consul/ex-info? result)
+                  (when (async/>! leader-ch [k false])
+                    (log "Error, release leader for" k " - " (.getMessage result))
+                    (async/<! (async/timeout (exp-wait (or (:failures state) 0) (get options :max-retry-wait 5000))))
+                    (recur (update-state state result)))
+                  (and (:leader state) (not= sessionid (:session result)))
+                  (when (async/>! leader-ch [k false])
+                    (log "Leader lost for" k " - " result)
+                    (async/<! (async/timeout 15000))
+                    (recur (assoc state :leader false)))
+                  (and (not (:leader state)) (= sessionid (:session result)))
+                  (when (async/>! leader-ch [k true])
+                    (log "Leader gained for" k " - " result)
+                    (async/<! (async/timeout 15000))
+                    (recur (assoc state :leader true)))
+                  :else
+                  (do
+                    (async/<! (async/timeout 15000))
+                    (recur state))))))))
+
+      ;; Release out here
+      (log "Finished and releasing:" k)
+      (async/>! leader-ch [k false])
+      (consul/kv-put conn k "1" {:release session}))))
