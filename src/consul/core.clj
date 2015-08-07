@@ -117,8 +117,8 @@
 
 (defn mapify-response
   "Converts a list of kv's into a map, stripping off a given prefix"
-  [prefix map? kvs]
-  (if map?
+  [prefix kvs]
+  (if (seq? kvs)
     (reduce
       (fn [a v]
         (let [ks
@@ -129,7 +129,7 @@
                   (.replaceFirst prefix "")
                   (.split "/")
                   seq))]
-          (assoc-in a ks v)))
+          (assoc-in a ks (:value v))))
       {} kvs)
     kvs))
 
@@ -190,17 +190,12 @@
     (kv-recurse conn prefix {:map? true}))
   ([conn prefix {:as params :keys [string? map?] :or {string? true :map? true}}]
    (let [{:keys [body headers] :as response}
-         (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})]
+         (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})
+         body (if (and body (seq? body)) (map #(kv-map-convert %1 string?) body))]
      (assoc
        (headers->index headers)
-       :body
-       (if (nil? body)
-         (if map? {} '())
-         (->>
-           body
-           (map #(kv-map-convert %1 string?))
-           (mapify-response prefix map?)))
-       ))))
+       :body body
+       :mapped (mapify-response prefix body)))))
 
 (defn kv-put
   "Sets key k with value v.

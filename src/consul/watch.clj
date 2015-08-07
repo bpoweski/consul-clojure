@@ -108,6 +108,7 @@
     w))
 
 
+;; TODO: The session needs to manage its own ttl renewal and shutdown lifecycle.
 
 (defn leader-watch
   "Setup a leader election watch on a given key, sends a vector with [path true/false] when the
@@ -187,3 +188,4 @@
       (log "Finished and releasing:" k)
       (async/>! leader-ch [k false])
       (consul/kv-put conn k "1" {:release session}))))
+
