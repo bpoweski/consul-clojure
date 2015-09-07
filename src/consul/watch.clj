@@ -64,7 +64,7 @@
             (do
               (async/<! (async/timeout (exp-wait (or (:failures old-state) 0) (get options :max-retry-wait 5000))))
               (recur (update-state old-state new-config)))
-            (not= (:config old-state) new-config)
+            (not= (:mapped (:config old-state)) (:mapped new-config))
             (do
               (log "State changed for " spec " : " new-config)
               (when (async/>! change-chan new-config)

@@ -88,7 +88,7 @@
 (defn consul-index
   [conn method endpoint params]
   (let [{:keys [body headers]} (consul conn method endpoint params)]
-    (assoc (headers->index headers) :body (cske/transform-keys csk/->kebab-case-keyword body))))
+     (assoc (headers->index headers) :body (cske/transform-keys csk/->kebab-case-keyword body))))
 
 (def consul-pascal-case-substitutions
   "Differences from PascalCase used by Consul."
