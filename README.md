@@ -100,7 +100,7 @@ Want a list of keys?
 Don't want a key?
 
 ```clojure
-(consul/kv-del :local "my-key)
+(consul/kv-del :local "my-key")
 => true
 ```
 
