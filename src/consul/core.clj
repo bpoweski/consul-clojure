@@ -265,7 +265,7 @@
 (defn agent-fail-check
   "Marks a local test as critical."
   [conn check-id & {:as params}]
-  (let [{:keys [status] :as response} (consul conn :get [:agent :check :warn check-id] {:query-params params})]
+  (let [{:keys [status] :as response} (consul conn :get [:agent :check :fail check-id] {:query-params params})]
     (= 200 status)))
 
 (defn agent-register-service
