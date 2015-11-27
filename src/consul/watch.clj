@@ -34,7 +34,7 @@
   ([old-state new-config]
    (if (consul/ex-info? new-config)
      (-> old-state
-         (update-in [:failures] inc)
+         (update-in [:failures] (fnil inc 0))
          (assoc :error new-config))
      (assoc old-state :config new-config :failures 0))))
 
