@@ -137,23 +137,26 @@
                 (try
                   (log "Create session " k)
                   (consul/session-create conn session)
-                   (catch Exception e (log "Exception creating session: " (.getMessage e)) (.printStackTrace e)))
+                  (catch Exception e (log "Exception creating session: " (.getMessage e)) (.printStackTrace e)))
                 (:session state))
               _ (log "Sessionid: " sessionid)
               state
-              (assoc state :session sessionid)]
-          (try
-            (when (and sessionid (not (:leader state)))
-              (log "Acquiring on " sessionid)
-              (let [a (consul/kv-put conn k "1" {:acquire sessionid})]
-                (log "Acquire: " a)))
-            (catch Exception e
-              (log "Exception acquiring session: " (.getMessage e))
-              (.printStackTrace e)))
+              (assoc state :session sessionid)
+              acquired?
+              (try
+                (when (and sessionid (not (:leader state)))
+                  (log "Acquiring on " sessionid)
+                  (let [a (consul/kv-put conn k "1" {:acquire sessionid})]
+                    (log "Acquire: " a)
+                    true))
+                (catch Exception e
+                  (log "Exception acquiring session: " (.getMessage e))
+                  (.printStackTrace e)
+                  false))]
 
           (cond
             ;; First, keep the session going, creating a new one if needed
-            (nil? sessionid)
+            (or (not acquired?) (nil? sessionid))
             (when (async/>! leader-ch [k false])
               (log "Invalid session, leader lost for" k " - " state)
               (async/<! (async/timeout 2000))
