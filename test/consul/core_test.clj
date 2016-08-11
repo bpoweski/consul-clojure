@@ -1,7 +1,6 @@
 (ns consul.core-test
   (:require [clojure.test :refer :all]
-            [consul.core :refer :all]
-            [com.stuartsierra.component :as component])
+            [consul.core :refer :all])
   (:import (java.util UUID)))
 
 
@@ -27,16 +26,6 @@
     (is (= 8501 (:server-port (consul-request {:scheme :https :server-name "10.0.37.4" :server-port 8501} :get [:agent :checks]))))
     (is (= :https (:scheme (consul-request {:scheme :https :server-name "10.0.37.4" :server-port 8501} :get [:agent :checks]))))
     (is (= "10.0.37.4" (:server-name (consul-request {:scheme :https :server-name "10.0.37.4" :server-port 8501} :get [:agent :checks]))))))
-
-(deftest kv-map->vec-test
-  (are [v k] (is (= v (get (meta (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} false)) k)))
-    389 :modify-index
-    2 :create-index
-    0 :lock-index
-    1 :flags)
-  (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value "bar"} false)))
-  (is (= ["foo" nil] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 0, :Value nil} true)))
-  (is (= ["foo" "bar"] (kv-map->vec {:CreateIndex 2, :ModifyIndex 389, :LockIndex 0, :Key "foo", :Flags 1, :Value "YmFy"} true))))
 
 (deftest map->check-test
   (let [m {:id       "search"
@@ -65,17 +54,17 @@
     (testing "basic kv-get operations"
       (is [k nil] (kv-get :local k))
       (is (true? (kv-put :local k v)))
-      (is (= [k v] (kv-get :local k :raw? true)))
-      (is (= [k v] (kv-get :local k :string? true)))
-      (is (= [k (str->base64 v)] (kv-get :local k :string? false)))
+      (is (= {:key k :body v} (select-keys (kv-get :local k {:raw? true}) [:key :body])))
+      (is (= [k v] (kv (kv-get :local k {:string? true}))))
+      (is (= [k (str->base64 v)] (kv (kv-get :local k {:string? false}))))
       (is (true? (kv-del :local k)))
-      (is (= [k nil] (kv-get :local k)))
+      (is (= [k nil] (kv (kv-get :local k))))
       (is (true? (kv-put :local k v))))
     (testing "kv-keys"
-      (is (= #{k} (kv-keys :local "consul-clojure")))
-      (is (= #{} (kv-keys :local "x")))
+      (is (= #{k} (:keys (kv-keys :local "consul-clojure"))))
+      (is (nil? (:keys (kv-keys :local "x"))))
       (kv-put :local k-2 "x")
-      (is (= #{k k-2} (kv-keys :local "consul-clojure"))))))
+      (is (= #{k k-2} (:keys (kv-keys :local "consul-clojure")))))))
 
 (deftest ^{:integration true} agent-test
   (testing "registering and removing checks"
@@ -96,15 +85,15 @@
     (let [service-id (str "consul-clojure.service.ttl." (UUID/randomUUID))]
       (is (true? (agent-register-service :local {:name service-id :check {:ttl "1s"}})))
       (is (map? (get-in (agent-services :local) [service-id])))
-      (is (= 1 (count (filter (comp #{service-id} :ServiceID) (vals (agent-checks :local))))))))
+      (is (= 1 (count (filter (comp #{service-id} :service-id) (vals (agent-checks :local))))))))
   (testing "registering a service with two ttl checks"
     (let [service-id (str "consul-clojure.service.ttl." (UUID/randomUUID))]
       (is (true? (agent-register-service :local {:name service-id :checks [{:ttl "1s"} {:ttl "5s"}]})))
       (is (map? (get-in (agent-services :local) [service-id])))
-      (is (= 2 (count (filter (comp #{service-id} :ServiceID) (vals (agent-checks :local)))))))))
+      (is (= 2 (count (filter (comp #{service-id} :service-id) (vals (agent-checks :local)))))))))
 
 (defn clean []
-  (kv-del :local "consul-clojure" :recurse? true)
+  (kv-del :local "consul-clojure" {:recurse? true})
   (doseq [service-id (filter #(re-seq #"^consul-clojure.*" %) (keys (agent-services :local)))]
     (agent-deregister-service :local service-id)))
 
