@@ -81,9 +81,9 @@
 
 (defn consul-200
   [conn method endpoint params]
-  (->
-   (consul conn method endpoint params)
-   :status (= 200)))
+  (-> (consul conn method endpoint params)
+      :status
+      (= 200)))
 
 (defn consul-index
   [conn method endpoint params]
@@ -99,10 +99,10 @@
    :CheckId   :CheckID})
 
 (defn map->consulcase [m]
-  (->
-   (cske/transform-keys csk/->PascalCase m)
-   (set/rename-keys consul-pascal-case-substitutions)))
+  (-> (cske/transform-keys csk/->PascalCase m)
+      (set/rename-keys consul-pascal-case-substitutions)))
 
+(def kv (juxt :key :value))
 
 ;; Key/Value endpoint - https://www.consul.io/docs/agent/http/kv.html
 
@@ -148,8 +148,9 @@
   ([conn prefix {:keys [dc wait index separator] :as params}]
    (let [{:keys [body headers status] :as response}
          (consul conn :get [:kv prefix] {:query-params (assoc params :keys "")})]
-     (cond (= 404 status) (headers->index headers)
-           (seq body) (assoc (headers->index headers) :keys (into #{} body))))))
+     (cond
+       (= 404 status) (headers->index headers)
+       (seq body)     (assoc (headers->index headers) :keys (into #{} body))))))
 
 (defn kv-get
   "Retrieves key k from consul given the following optional parameters.
@@ -376,8 +377,7 @@
   ([conn service-id enable reason]
    (agent-maintenance-service conn service-id {:enable enable :reason reason}))
   ([conn service-id {:keys [enable reason] :as params}]
-   (consul-200 conn :get [:agent :service :maintenance service-id]
-               {:query-params params})))
+   (consul-200 conn :get [:agent :service :maintenance service-id] {:query-params params})))
 
 
 ;; Catalog endpoints - https://www.consul.io/docs/agent/http/catalog.html

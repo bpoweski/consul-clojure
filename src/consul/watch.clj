@@ -81,9 +81,9 @@
   (async/go-loop []
     (async/<! (async/thread (consul/agent-pass-check conn check-id)))
     (when (async/alt! ch
-            ([v] v)
-            (async/timeout ms)
-            ([_] :continue))
+                      ([v] v)
+                      (async/timeout ms)
+                      ([_] :continue))
       (recur))))
 
 (defn check-id [service-definition]
@@ -191,4 +191,3 @@
       (log "Finished and releasing:" k)
       (async/>! leader-ch [k false])
       (consul/kv-put conn k "1" {:release session}))))
-
