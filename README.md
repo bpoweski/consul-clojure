@@ -2,6 +2,29 @@
 
 [Consul](https://www.consul.io) is an awesome service discovery and configuration provider.
 
+
+## Changelog
+
+### 0.6.0
+
+ > This is a **major update** that **may be BREAKING**.
+
+```clojure
+[consul-clojure "0.6.0-SNAPSHOT"]
+```
+
+* Pulled in the following changes from a fork
+* **BREAK**: Dropped use of metadata for tracking various values
+* **BREAK**: No more keyword args in favor of maps
+* **BREAK**: Dropped the dependency on com.stuartsierra.component and components in favor of fns
+* **FIX**: NPE on first :failures increment
+* Add leader watch
+
+
+### 0.1.0
+
+> Initial release
+
 ```clojure
 [consul-clojure "0.1.0"] ;; initial
 ```
