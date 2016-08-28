@@ -41,38 +41,34 @@ This is the LaunchAgent configuration I use for OSX after installing `consul` an
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"\>
 <plist version="1.0">
-  <dict>
-    <key>KeepAlive</key>
-    <true/>
-    <key>Label</key>
-    <string>hashicorp.consul.server</string>
-    <key>ProgramArguments</key>
-    <array>
-      <string>/usr/local/bin/consul</string>
-      <string>agent</string>
-      <string>-server</string>
-      <string>-bootstrap-expect</string>
-      <string>1</string>
-      <string>-data-dir</string>
-      <string>/usr/local/var/consul</string>
-      <string>-config-dir</string>
-      <string>/usr/local/etc/consul.d</string>
-      <string>-ui-dir</string>
-      <string>/opt/homebrew-cask/Caskroom/consul-web-ui/0.5.2/dist</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>UserName</key>
-    <string>bpoweski</string>
-    <key>WorkingDirectory</key>
-    <string>/usr/local/var</string>
-    <key>StandardErrorPath</key>
-    <string>/usr/local/var/log/consul.log</string>
-    <key>StandardOutPath</key>
-    <string>/usr/local/var/log/consul.log</string>
-  </dict>
+    <dict>
+        <key>KeepAlive</key>
+        <true/>
+        <key>Label</key>
+        <string>hashicorp.consul.server</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/usr/local/bin/consul</string>
+            <string>agent</string>
+            <string>-dev</string>
+            <string>-bind=127.0.0.1</string>
+            <string>-data-dir=/usr/local/var/consul</string>
+            <string>-config-dir=/usr/local/etc/consul.d</string>
+            <string>-ui-dir=/usr/local/Cellar/consul/0.6.4/share/consul/web-ui</string>
+        </array>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>UserName</key>
+        <string>bpoweski</string>
+        <key>WorkingDirectory</key>
+        <string>/usr/local/var</string>
+        <key>StandardErrorPath</key>
+        <string>/usr/local/var/log/consul.log</string>
+        <key>StandardOutPath</key>
+        <string>/usr/local/var/log/consul.log</string>
+    </dict>
 </plist>
 ```
 

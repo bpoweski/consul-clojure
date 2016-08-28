@@ -58,7 +58,8 @@
                          client/request parse-response)]
         (if (success? response)
           response
-          (throw (ex-info (:body response) {:reason :application-failure :conn conn :endpoint endpoint :request request :http-request http-request :http-response response}))))
+          (throw (ex-info (:body response) {:reason :application-failure :conn conn :endpoint endpoint :request request
+                                            :http-request http-request :http-response response}))))
       (catch java.net.ConnectException ex
         (throw (ex-info "connection failure" {:reason :connect-failure :conn conn :endpoint endpoint :request request :http-request http-request} ex)))
       (catch java.net.UnknownHostException ex
@@ -189,7 +190,7 @@
   :string?    - Converts the value returned for k into a string.  Defaults to true."
   ([conn prefix]
    (kv-recurse conn prefix {:map? true}))
-  ([conn prefix {:as params :keys [string? map?] :or {string? true :map? true}}]
+  ([conn prefix {:as params :keys [string? map?] :or {string? true map? true}}]
    (let [{:keys [body headers] :as response}
          (consul conn :get [:kv prefix] {:query-params (assoc params :recurse "")})
          body (if (and body (seq? body)) (map #(kv-map-convert %1 string?) body))]
@@ -385,7 +386,7 @@
 ;; These are low level endpoints, so it is preferrable to use the other functions instead
 
 (defn catalog-register
-  "Register a catalog entry. Low level - preferrably "
+  "Register a catalog entry. Low level - preferably"
   ([conn {:keys [datacenter node address service check] :as entry}]
    (catalog-register conn entry {}))
   ([conn entry {:as params}]
