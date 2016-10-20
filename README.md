@@ -139,6 +139,38 @@ Let's remove more than one:
 => #{}
 ```
 
+## Atomic transactions (available in Consul 0.7)
+
+The txn library allows executing multiple operations in an atomic transaction. All operations
+in the txn Consul 0.7 txn documentation are supported https://www.consul.io/docs/agent/http/kv.html
+
+The result of a transaction is always either a list of results, or an exception if the transaction
+was not successful.
+
+```clojure
+(require '[consul.txn :as txn])
+
+(txn/put :local (fn [tx] (txn/kv-set tx "key" "val")
+                         (txn/kv-get tx "key")))
+
+=> ({:create-index 3296,
+     :flags 0,
+     :key "key",
+     :lock-index 0,
+     :modify-index 3296,
+     :value nil}
+    {:create-index 3296,
+     :flags 0,
+     :key "key",
+     :lock-index 0,
+     :modify-index 3296,
+     :value "val"})
+```
+
+If any of the operations fail, the whole transaction fails. Errors are reported in the exception `:errors` key.
+
+Currently supported operations: `kv-set`, `kv-get`, `kv-set-cas`, `kv-lock`, `kv-unlock`, `kv-get-tree`, `kv-check-index`,
+`kv-check-session`, `kv-delete`, `kv-delete-tree`, `kv-delete-cas`.
 
 ### Agent
 

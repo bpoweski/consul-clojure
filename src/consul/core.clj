@@ -39,7 +39,8 @@
     (vector? endpoint) (assoc :uri (endpoint->path endpoint))
     (string? endpoint) (assoc :uri endpoint)
     (map? opts)        (merge opts)
-    (map? body)        (update-in [:body] json/generate-string)))
+    (map? body)        (update-in [:body] json/generate-string)
+    (vector? body)     (update-in [:body] json/generate-string)))
 
 (defn success? [{:keys [status] :as resp}]
   (or (client/unexceptional-status? status)
@@ -58,8 +59,20 @@
                          client/request parse-response)]
         (if (success? response)
           response
-          (throw (ex-info (:body response) {:reason :application-failure :conn conn :endpoint endpoint :request request
-                                            :http-request http-request :http-response response}))))
+          (if-let [errors (get-in response [:body :Errors])]
+            (throw (ex-info "Transaction failure" {:reason :transaction-failure
+                                                   :conn conn
+                                                   :endpoint endpoint
+                                                   :request request
+                                                   :http-request http-request
+                                                   :http-response response
+                                                   :errors errors}))
+            (throw (ex-info (:body response) {:reason :application-failure
+                                              :conn conn
+                                              :endpoint endpoint
+                                              :request request
+                                              :http-request http-request
+                                              :http-response response})))))
       (catch java.net.ConnectException ex
         (throw (ex-info "connection failure" {:reason :connect-failure :conn conn :endpoint endpoint :request request :http-request http-request} ex)))
       (catch java.net.UnknownHostException ex
