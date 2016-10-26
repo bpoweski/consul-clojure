@@ -5,12 +5,19 @@
 
 ## Changelog
 
+### 0.7.0
+
+ > Consul 0.7 Features
+ 
+ * Consul 0.7 KV transactions courtesy of @pimeys
+
+
 ### 0.6.0
 
  > This is a **major update** that **may be BREAKING**.
 
 ```clojure
-[consul-clojure "0.6.0-SNAPSHOT"]
+[consul-clojure "0.6.0"]
 ```
 
 * Pulled in the following changes from a fork
