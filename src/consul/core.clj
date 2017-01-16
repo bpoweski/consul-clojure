@@ -13,7 +13,7 @@
   (String. (DatatypeConverter/parseBase64Binary s) "UTF8"))
 
 (defn str->base64 [^String s]
-  (DatatypeConverter/printBase64Binary (.getBytes s)))
+  (DatatypeConverter/printBase64Binary (.getBytes s "UTF8")))
 
 (defn endpoint->path
   "Converts a vector into the consul endpoint path."
