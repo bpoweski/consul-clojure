@@ -1,6 +1,6 @@
 language: clojure
 before_script:
-  - curl -v --compressed -o consul_0.7.2_linux_amd64.zip 'https://releases.hashicorp.com/consul/0.7.2/consul_0.7.2_linux_amd64.zip'
+  - curl -v --tlsv1.2 --compressed -o consul_0.7.2_linux_amd64.zip 'https://releases.hashicorp.com/consul/0.7.2/consul_0.7.2_linux_amd64.zip'
   - unzip "consul_0.7.2_linux_amd64.zip"
   - ./consul --version
 script:
