@@ -1,4 +1,4 @@
-(defproject consul-clojure "0.7.0"
+(defproject consul-clojure "0.7.1"
   :description "A Consul client for Clojure applications."
   :url "http://github.com/bpoweski/consul-clojure"
   :license {:name "Eclipse Public License"

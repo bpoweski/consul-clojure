@@ -5,12 +5,20 @@
 
 ## Changelog
 
+### 0.7.1
+
+> This is a **minor update**
+
+```clojure
+[consul-clojure "0.7.1"]
+```
+* [pimeys] Fixed issue where bytes were serialized using the platform encoding instead of UTF-8
+
 ### 0.7.0
 
- > Consul 0.7 Features
- 
- * Consul 0.7 KV transactions courtesy of @pimeys
+> Consul 0.7 Features
 
+* Consul 0.7 KV transactions courtesy of @pimeys
 
 ### 0.6.0
 
