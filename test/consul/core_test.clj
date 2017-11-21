@@ -39,7 +39,8 @@
     (is (= (:Name (map->check m)) "Google"))
     (is (= (:HTTP (map->check m)) "http://www.google.com"))
     (is (= (:Interval (map->check m)) "10s"))
-    (is (= (:ServiceID (map->check (assoc m :service-id "redis-01"))) "redis-01"))))
+    (is (= (:ServiceID (map->check (assoc m :service-id "redis-01"))) "redis-01"))
+    (is (= (:TTL (map->check (-> m (dissoc :http :interval) (assoc :ttl "20s")))) "20s"))))
 
 (deftest ^{:integration true} consul-test
   (testing "with a connection failure"
