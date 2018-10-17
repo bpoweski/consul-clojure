@@ -53,6 +53,7 @@
   "Creates a request and calls consul using the HTTP API."
   [conn method endpoint & [{:as request}]]
   (let [http-request (consul-request conn method endpoint request)]
+    (clojure.pprint/pprint http-request)
     (try
       (let [response (-> http-request
                          (assoc :throw-exceptions false)
@@ -110,11 +111,33 @@
    :Id        :ID
    :Ttl       :TTL
    :ServiceId :ServiceID
-   :CheckId   :CheckID})
+   :CheckId   :CheckID
+   :Dns       :DNS})
+
+(defn rename-keys [m substitutions]
+  (reduce (fn [r [k v]]
+            (assoc r (get substitutions k k) (if (map? v)
+                                               (rename-keys v substitutions)
+                                               v)))
+          {} m))
 
 (defn map->consulcase [m]
   (-> (cske/transform-keys csk/->PascalCase m)
-      (set/rename-keys consul-pascal-case-substitutions)))
+      (rename-keys consul-pascal-case-substitutions)))
+      ;(set/rename-keys consul-pascal-case-substitutions)))
+
+
+(comment
+  (queries :local)
+  (def m {:name "query-bourne-2"
+          :service {:service "bourne-api-development"
+                    :failover {:nearest-n 4
+                               :datacenters ["dc1" "dc2"]}
+                    :near :_ip
+                    :only-passing true
+                    :tags ["development" "!experimental"]}
+          :dns {:ttl "10s"}})
+  (map->consulcase m))
 
 (def kv (juxt :key :value))
 
@@ -179,7 +202,7 @@
   :string?    - Converts the value returned for k into a string.  Defaults to true."
   ([conn k]
    (kv-get conn k {}))
-  ([conn k {:keys [dc wait index raw? string?] :or {raw? false string? true} :as params }]
+  ([conn k {:keys [dc wait index raw? string?] :or {raw? false string? true} :as params}]
    (let [{:keys [body headers] :as response}
          (consul conn :get [:kv k]
                  {:query-params (cond-> (dissoc params :raw? :string?)
@@ -334,6 +357,20 @@
   {:post [(check? %)]}
   (map->consulcase check))
 
+(defn query-check?
+  "Simple valdation for prepared query maps"
+  [{:keys [Name Service] :as query}]
+  (and (string? Name)
+       (map? Service)))
+
+(defn map->prepared-query
+  "Creates a prepared query from a map. Returns a map with excessive capitalization conforming to consul's expectations.
+
+  Requires :name and :service to be set"
+  [query]
+  {:post [(query-check? %)]}
+  (map->consulcase query))
+
 (defn agent-register-check
   "Registers a new check with the local agent."
   ([conn {:keys [name id notes script http interval service-id] :as m}]
@@ -346,7 +383,7 @@
   ([conn check-id]
    (agent-deregister-check conn check-id {}))
   ([conn check-id {:as params}]
-   (consul-200 conn :delete [:agent :check :deregister check-id] {:query-params params})))
+   (consul-200 conn :put [:agent :check :deregister check-id] {:query-params params})))
 
 (defn agent-pass-check
   "Marks a local check as passing."
@@ -383,11 +420,11 @@
   ([conn service-id]
    (agent-deregister-service conn service-id {}))
   ([conn service-id {:as params}]
-   (consul-200 conn :get [:agent :service :deregister service-id] {:query-params params})))
+   (consul-200 conn :put [:agent :service :deregister service-id] {:query-params params})))
 
 
 (defn agent-maintenance-service
-  "Registers a new local service."
+  "Put a service into maintenance"
   ([conn service-id enable reason]
    (agent-maintenance-service conn service-id {:enable enable :reason reason}))
   ([conn service-id {:keys [enable reason] :as params}]
@@ -556,7 +593,7 @@
   "Returns the nodes and health info of a service."
   ([conn service]
    (service-health conn service {}))
-  ([conn service {:keys [dc tag passing?] :or {passing? false}:as params }]
+  ([conn service {:keys [dc tag passing?] :or {passing? false}:as params}]
    (consul-index conn :get [:health :service service]
                  {:query-params (cond-> (dissoc params :passing?)
                                   passing? (assoc :passing ""))})))
@@ -592,3 +629,50 @@
   "Returns true if every check is passing for each object returned from /v1/health/service/<service>."
   [health-service]
   (every? passing? (:Checks health-service)))
+
+;; Prepared queries
+(defn prepared-queries
+  "Return the installed prepared queries"
+  [conn]
+  (:body (consul conn :get [:query])))
+
+(defn create-prepared-query
+  "Create a new prepared query based on the provided entry map, keys are automatically transformed
+   to the format Consul wants"
+  [conn {:keys [name token session service-name fail-over near only-passing? tags ttl] :as entry}]
+  (:body (consul conn :post [:query] {:body (map->prepared-query entry) :query-params {}})))
+
+(defn delete-prepared-query
+  "Delete a prepared query by its ID (note: names do not work here).
+  The ID can either be given as a String, or as a java.util.UUID"
+  [conn query-id]
+  (consul-200 conn :delete [:query (.toString query-id)] {}))
+
+(defn execute-prepared-query
+  "Execute a prepared query by either its ID (a UUID) or
+   its name"
+  [conn query-id]
+  (:body (consul conn :get [:query (.toString query-id) :execute])))
+
+(defn explain-prepared-query
+  "This generates a fully-rendered query for a given, post interpolation"
+  [conn query-id]
+  (:body (consul conn :get [:query (.toString query-id) :explain])))
+
+(comment
+  (def m {:name "query-bourne-2"
+          :service {:service "bourne-api-development"
+                    :failover {:nearest-n 4
+                               :datacenters ["dc1" "dc2"]}
+                    :near "_ip"
+                    :only-passing true
+                    :tags ["development" "!experimental"]}
+          :dns {:ttl "10s"}})
+  (->> (prepared-queries :local)
+       (map :ID)
+       (map (partial delete-prepared-query :local)))
+  (prepared-queries :local)
+  (create-prepared-query :local m)
+  (delete-prepared-query :local "8a9dfb89-4f1e-1ecf-92db-f8c8de2ea137")
+  (execute-prepared-query :local "query-bourne-2")
+  (explain-prepared-query :local "query-bourne-2"))
