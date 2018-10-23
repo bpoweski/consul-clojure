@@ -53,7 +53,6 @@
   "Creates a request and calls consul using the HTTP API."
   [conn method endpoint & [{:as request}]]
   (let [http-request (consul-request conn method endpoint request)]
-    (clojure.pprint/pprint http-request)
     (try
       (let [response (-> http-request
                          (assoc :throw-exceptions false)
@@ -634,7 +633,9 @@
 (defn prepared-queries
   "Return the installed prepared queries"
   [conn]
-  (:body (consul conn :get [:query])))
+  (->> (consul conn :get [:query])
+       :body
+       (reduce (fn [r q] (assoc r (:Name q) q)) {})))
 
 (defn create-prepared-query
   "Create a new prepared query based on the provided entry map, keys are automatically transformed
@@ -669,6 +670,7 @@
                     :tags ["development" "!experimental"]}
           :dns {:ttl "10s"}})
   (->> (prepared-queries :local)
+       vals
        (map :ID)
        (map (partial delete-prepared-query :local)))
   (prepared-queries :local)

@@ -93,6 +93,24 @@
       (is (map? (get-in (agent-services :local) [service-id])))
       (is (= 2 (count (filter (comp #{service-id} :service-id) (vals (agent-checks :local)))))))))
 
+(deftest ^{:integration true} prepared-query-test
+  (testing "registering and removing prepared queries"
+    (let [pq-name (str "consul-clojure.prepared-query." (UUID/randomUUID))]
+      (is (nil? (get-in (prepared-queries :local) [pq-name])))
+      (is (not (nil? (create-prepared-query :local {:name pq-name :service {:service "some-service" :fail-over {:nearest-n 4} :near "_ip" :tags ["test"]} :dns {:ttl "10s"}}))))
+      (is (map? (get-in (prepared-queries :local) [pq-name])))
+      (is (true? (delete-prepared-query :local (:ID (get (prepared-queries :local) pq-name)))))))
+  (testing "registering and querying prepared queries"
+    (let [service-name (str "consul-clojure.service." (UUID/randomUUID))
+          pq-name (str "consul-clojure.prepared-query." (UUID/randomUUID))]
+      (is (true? (agent-register-service :local {:name service-name})))
+      (is (not (nil? (create-prepared-query :local {:name pq-name :service {:service service-name :fail-over {:nearest-n 4} :near "_ip" :tags ["test"]} :dns {:ttl "10s"}}))))
+      (let [pq-id (:ID (get (prepared-queries :local) pq-name))]
+        (is (not (empty? (execute-prepared-query :local pq-id))))
+        (is (true? (delete-prepared-query :local pq-id)))
+        (is (true? (agent-deregister-service :local service-name)))))))
+
+
 (defn clean []
   (kv-del :local "consul-clojure" {:recurse? true})
   (doseq [service-id (filter #(re-seq #"^consul-clojure.*" %) (keys (agent-services :local)))]
@@ -104,3 +122,6 @@
   (clean))
 
 (use-fixtures :each cleanup)
+
+(comment
+  (run-all-tests #"consul/.*"))
