@@ -632,33 +632,43 @@
 ;; Prepared queries
 (defn prepared-queries
   "Return the installed prepared queries"
-  [conn]
-  (->> (consul conn :get [:query])
-       :body
-       (reduce (fn [r q] (assoc r (:Name q) q)) {})))
+  ([conn]
+   (prepared-queries conn {}))
+  ([conn params]
+   (->> (consul conn :get [:query] {:query-params params})
+        :body
+        (reduce (fn [r q] (assoc r (:Name q) q)) {}))))
 
 (defn create-prepared-query
   "Create a new prepared query based on the provided entry map, keys are automatically transformed
    to the format Consul wants"
-  [conn {:keys [name token session service-name fail-over near only-passing? tags ttl] :as entry}]
-  (:body (consul conn :post [:query] {:body (map->prepared-query entry) :query-params {}})))
+  ([conn entry]
+   (create-prepared-query conn entry {}))
+  ([conn {:keys [name token session service-name fail-over near only-passing? tags ttl] :as entry} params]
+   (:body (consul conn :post [:query] {:body (map->prepared-query entry) :query-params params}))))
 
 (defn delete-prepared-query
   "Delete a prepared query by its ID (note: names do not work here).
   The ID can either be given as a String, or as a java.util.UUID"
-  [conn query-id]
-  (consul-200 conn :delete [:query (.toString query-id)] {}))
+  ([conn query-id]
+   (delete-prepared-query conn query-id {}))
+  ([conn query-id params]
+   (consul-200 conn :delete [:query (.toString query-id)] params)))
 
 (defn execute-prepared-query
   "Execute a prepared query by either its ID (a UUID) or
    its name"
-  [conn query-id]
-  (:body (consul conn :get [:query (.toString query-id) :execute])))
+  ([conn query-id]
+   (execute-prepared-query conn  query-id {}))
+  ([conn query-id params]
+   (:body (consul conn :get [:query (.toString query-id) :execute] :query-params params))))
 
 (defn explain-prepared-query
   "This generates a fully-rendered query for a given, post interpolation"
-  [conn query-id]
-  (:body (consul conn :get [:query (.toString query-id) :explain])))
+  ([conn query-id]
+   (explain-prepared-query conn query-id {}))
+  ([conn query-id params]
+   (:body (consul conn :get [:query (.toString query-id) :explain] :query-params params))))
 
 (comment
   (def m {:name "query-bourne-2"
