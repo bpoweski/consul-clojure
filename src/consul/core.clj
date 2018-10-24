@@ -661,7 +661,9 @@
   ([conn query-id]
    (execute-prepared-query conn  query-id {}))
   ([conn query-id params]
-   (:body (consul conn :get [:query (.toString query-id) :execute] :query-params params))))
+   (->> (consul conn :get [:query (.toString query-id) :execute] :query-params params)
+        :body
+        (cske/transform-keys csk/->kebab-case-keyword))))
 
 (defn explain-prepared-query
   "This generates a fully-rendered query for a given, post interpolation"
