@@ -673,14 +673,6 @@
    (:body (consul conn :get [:query (.toString query-id) :explain] :query-params params))))
 
 (comment
-  (def m {:name "query-bourne-2"
-          :service {:service "bourne-api-development"
-                    :failover {:nearest-n 4
-                               :datacenters ["dc1" "dc2"]}
-                    :near "_ip"
-                    :only-passing true
-                    :tags ["development" "!experimental"]}
-          :dns {:ttl "10s"}})
   (->> (prepared-queries :local)
        vals
        (map :ID)
