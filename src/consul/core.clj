@@ -310,7 +310,7 @@
   "Simple validation outlined in https://www.consul.io/docs/agent/checks.html."
   [{:keys [Name HTTP TTL Script Interval] :as check}]
   (and (string? Name)
-       (or (string? Script) (string? HTTP) (string? :TTL))
+       (or (string? Script) (string? HTTP) (string? TTL))
        (if (or Script HTTP)
          (string? Interval)
          true)))
