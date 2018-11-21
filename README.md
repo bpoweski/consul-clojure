@@ -5,6 +5,16 @@
 
 ## Changelog
 
+### 0.7.2
+
+> This is a **minor update**
+
+```clojure
+[consul-clojure "0.7.1"]
+```
+
+* [wkoelewijn] Fixes issue with TTL check
+
 ### 0.7.1
 
 > This is a **minor update**
