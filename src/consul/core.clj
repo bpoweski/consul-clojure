@@ -123,20 +123,6 @@
 (defn map->consulcase [m]
   (-> (cske/transform-keys csk/->PascalCase m)
       (rename-keys consul-pascal-case-substitutions)))
-      ;(set/rename-keys consul-pascal-case-substitutions)))
-
-
-(comment
-  (queries :local)
-  (def m {:name "query-bourne-2"
-          :service {:service "bourne-api-development"
-                    :failover {:nearest-n 4
-                               :datacenters ["dc1" "dc2"]}
-                    :near :_ip
-                    :only-passing true
-                    :tags ["development" "!experimental"]}
-          :dns {:ttl "10s"}})
-  (map->consulcase m))
 
 (def kv (juxt :key :value))
 
@@ -671,14 +657,3 @@
    (explain-prepared-query conn query-id {}))
   ([conn query-id params]
    (:body (consul conn :get [:query (.toString query-id) :explain] :query-params params))))
-
-(comment
-  (->> (prepared-queries :local)
-       vals
-       (map :ID)
-       (map (partial delete-prepared-query :local)))
-  (prepared-queries :local)
-  (create-prepared-query :local m)
-  (delete-prepared-query :local "8a9dfb89-4f1e-1ecf-92db-f8c8de2ea137")
-  (execute-prepared-query :local "query-bourne-2")
-  (explain-prepared-query :local "query-bourne-2"))
