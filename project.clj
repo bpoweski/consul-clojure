@@ -3,9 +3,9 @@
   :url "http://github.com/bpoweski/consul-clojure"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :repositories {"snapshots" {:url "https://nedap.jfrog.io/nedap/staffing-solutions/"}
-                             :username :env/artifactory_user
-                             :password :env/artifactory_pass
+  :repositories {"snapshots" {:url "https://nedap.jfrog.io/nedap/staffing-solutions/"
+                              :username :env/artifactory_user
+                              :password :env/artifactory_pass}
                  "releases" {:url "https://nedap.jfrog.io/nedap/staffing-solutions/"
                              :username :env/artifactory_user
                              :password :env/artifactory_pass}}
